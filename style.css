@@ -71,3 +71,5 @@ button,.reading-controls a{min-height:44px;line-height:1.4}.question-nav button{
 /* Compact question spacing, with full-sized answer targets. */
 #practiceExam .exam-layout>section.panel{padding:20px}#examNextFlag{padding:6px 10px;font-size:13px;min-height:34px}.explorer-answer{padding:10px 12px;min-height:44px}.question-card{margin-top:18px;padding-top:16px}.question-card>.toolbar{margin-bottom:8px;gap:8px}.question-card>.toolbar button{font-size:13px;padding:6px 10px;min-height:34px}#questions .question-card h2,#readingQuestions h3{margin:8px 0}.question-card .choice{margin:8px 0;padding:10px 12px;min-height:44px}
 @media(max-width:800px){#practiceExam .exam-layout>section.panel{padding:16px}#examQuestions .flag-button,#examNextFlag,.question-card>.toolbar button,.explorer-blank-tools button,.explorer-blank-tools select{min-height:44px}}
+
+a.packet-choice{display:block;text-decoration:none;color:inherit}a.packet-choice:hover{border-color:#287265;background:#eef8f4}

@@ -99,13 +99,29 @@
   const targets=test.questions.filter(q=>partFor(q.passage)===section&&q.target).map(q=>q.target);
   const escaped=targets.map(t=>t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
   const targetPattern=escaped.length?new RegExp('(?<![\\p{L}\\p{N}_])('+escaped.join('|')+')(?![\\p{L}\\p{N}_])','giu'):null;
-  function markup(value,ranges,offset){
-   const boldRanges=[];if(targetPattern){targetPattern.lastIndex=0;for(const match of value.matchAll(targetPattern))boldRanges.push([match.index,match.index+match[0].length]);}
-   const raised=ranges.map(([a,b])=>[Math.max(0,a-offset),Math.min(value.length,b-offset)]).filter(([a,b])=>a<b);
-   const bounds=[...new Set([0,value.length,...boldRanges.flat(),...raised.flat()])].sort((a,b)=>a-b);
-   return bounds.slice(0,-1).map((a,i)=>{const b=bounds[i+1],bold=boldRanges.some(([x,y])=>a>=x&&b<=y),sup=raised.some(([x,y])=>a>=x&&b<=y);return '<tspan'+(bold?' font-weight="bold"':'')+(sup?' baseline-shift="super" font-size="65%"':'')+'>'+escape(value.slice(a,b))+'</tspan>';}).join('');
+  function styledRuns(value,raised,bold,offset){
+   const clip=ranges=>ranges.map(([a,b])=>[Math.max(0,a-offset),Math.min(value.length,b-offset)]).filter(([a,b])=>a<b);
+   raised=clip(raised);bold=clip(bold);
+   const bounds=[...new Set([0,value.length,...bold.flat(),...raised.flat()])].sort((a,b)=>a-b);
+   return bounds.slice(0,-1).map((a,i)=>{const b=bounds[i+1];return {text:value.slice(a,b),bold:bold.some(([x,y])=>a>=x&&b<=y),sup:raised.some(([x,y])=>a>=x&&b<=y)};});
   }
-  function lines(value,size,bold=false){ctx.font=(bold?'bold ':'')+size+'px Georgia';let line='';const rows=[],ranges=raisedRanges(value);for(const word of String(value).split(/\s+/)){const next=line?line+' '+word:word;if(ctx.measureText(next).width>820&&line){rows.push(line);line=word;}else line=next;}if(line)rows.push(line);let offset=0;rows.forEach(row=>{offset=String(value).indexOf(row,offset);parts.push('<text x="40" y="'+y+'" font-family="Georgia,serif" font-size="'+size+'"'+(bold?' font-weight="bold"':'')+'>'+markup(row,ranges,offset)+'</text>');offset+=row.length;y+=size*1.55;});y+=14;}
+  function lines(value,size,bold=false){
+   value=String(value);const raised=raisedRanges(value),emphasis=[];
+   if(targetPattern){targetPattern.lastIndex=0;for(const m of value.matchAll(targetPattern))emphasis.push([m.index,m.index+m[0].length]);}
+   const runs=(text,offset)=>styledRuns(text,raised,emphasis,offset);
+   const measure=(text,offset)=>runs(text,offset).reduce((width,run)=>{ctx.font=((bold||run.bold)?'bold ':'')+(size*(run.sup?0.65:1))+'px Georgia';return width+ctx.measureText(run.text).width;},0);
+   const rows=[];let start=-1,end=0;
+   for(const word of value.matchAll(/\S+/g)){
+    if(start<0)start=word.index;
+    const next=word.index+word[0].length;
+    if(end>start&&measure(value.slice(start,next),start)>810){rows.push([start,end]);start=word.index;}
+    // Long unbroken strings also stay inside the page.
+    while(measure(value.slice(start,next),start)>810&&next-start>1){let cut=start+1;while(cut<next&&measure(value.slice(start,cut+1),start)<=810)cut++;rows.push([start,cut]);start=cut;}
+    end=next;
+   }
+   if(start>=0&&end>start)rows.push([start,end]);
+   rows.forEach(([from,to])=>{const markup=runs(value.slice(from,to),from).map(run=>'<tspan'+(run.bold?' font-weight="bold"':'')+(run.sup?' baseline-shift="super" font-size="65%"':'')+'>'+escape(run.text)+'</tspan>').join('');parts.push('<text x="40" y="'+y+'" font-family="Georgia,serif" font-size="'+size+'"'+(bold?' font-weight="bold"':'')+'>'+markup+'</text>');y+=size*1.55;});y+=14;
+  }
   lines(p.title,25,true);p.paragraphs.forEach(value=>lines(value,19));
   if(p.bank.length)lines('Word bank: '+p.bank.map(o=>o.text).join(' · '),19);else p.tables.forEach(rows=>rows.forEach(row=>lines(row.join(' | '),18)));
   for(let i=0;i<p.images.length;i++){const src=p.images[i];if(p.imageCaptions?.[i])lines(p.imageCaptions[i],20,true);const img=new Image();img.src=src;try{await img.decode();}catch(_){continue;}const width=Math.min(820,img.naturalWidth),height=width*img.naturalHeight/img.naturalWidth;parts.push('<image x="40" y="'+y+'" width="'+width+'" height="'+height+'" href="'+escape(src)+'"/>');y+=height+24;}

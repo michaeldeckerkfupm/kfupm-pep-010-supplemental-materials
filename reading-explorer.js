@@ -1,6 +1,6 @@
 'use strict';
 (() => {
- let active,section=0,token=0,hooks,parts=[],selectedWord=null,layoutObserver;
+ let active,section=0,token=0,hooks,parts=[],selectedWord=null,layoutObserver,activity=0,bankObserver;
  const $=id=>document.getElementById(id),make=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
  const escape=text=>String(text).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 
@@ -12,9 +12,10 @@
  }
  function table(parent,rows){const wrap=make('div');wrap.className='table-scroll';const t=make('table');t.className='vocab-table';rows.forEach(row=>{const tr=make('tr');row.forEach(value=>tr.append(make('td',value)));t.append(tr);});wrap.append(t);parent.append(wrap);}
  window.explorerQuestionExtras=(parent,q)=>{(q.images||[]).forEach(src=>{const img=make('img');img.src=src;img.alt='Figure supplied with this question';img.className='explorer-figure';parent.append(img);});(q.tables||[]).forEach(rows=>table(parent,rows));};
- window.explorerClose=()=>{token++;layoutObserver?.disconnect();active=null;hooks=null;selectedWord=null;document.getElementById('explorerParts')?.remove();document.getElementById('explorerWordBanks')?.remove();$('practiceExam').classList.remove('explorer-exam');document.querySelector('.passage-header h2').textContent='Reading passage';document.querySelector('.passage-controls').hidden=false;$('examSubmit').textContent='Submit answers';$('passageImageButton').textContent='Original page';$('passageImageButton').title='Original layout with printed line numbers. Scroll this panel to find the referenced line.';};
+ window.explorerClose=()=>{token++;layoutObserver?.disconnect();bankObserver?.disconnect();active=null;hooks=null;selectedWord=null;document.getElementById('explorerParts')?.remove();document.getElementById('explorerActivities')?.remove();$('practiceExam').classList.remove('explorer-exam','explorer-vocabulary');document.querySelector('.passage-header h2').textContent='Reading passage';document.querySelector('.passage-controls').hidden=false;$('examSubmit').textContent='Submit answers';$('passageImageButton').textContent='Original page';$('passageImageButton').title='Original layout with printed line numbers. Scroll this panel to find the referenced line.';};
  const partFor=index=>active.passages[index].part??index+1;
- window.explorerVisible=i=>!active||partFor(active.questions[i].passage)===section;
+ window.explorerVisible=i=>!active||(partFor(active.questions[i].passage)===section&&(section!=='vocabulary'||active.questions[i].passage===activity));
+ const bankQuestion=q=>q.type==='choice'&&(active.passages[q.passage].part==='vocabulary'||/\bbox\b/i.test(active.passages[q.passage].instructions))&&active.passages[q.passage].bank.length>=2&&q.options.length===active.passages[q.passage].bank.length&&q.options.every(o=>active.passages[q.passage].bank.some(word=>word.text===o.text));
  window.explorerOpen=(test,callbacks)=>{
   active=test;hooks=callbacks;parts=[...new Set(test.passages.map((p,i)=>p.part??i+1))].sort((a,b)=>a==='vocabulary'?1:b==='vocabulary'?-1:a-b);
   section=parts.includes(hooks.state().explorerPart)?hooks.state().explorerPart:parts[0];
@@ -24,7 +25,6 @@
   ['Previous part','Next part'].forEach((text,i)=>{const b=make('button',text);b.type='button';b.onclick=()=>selectPart(parts[parts.indexOf(section)+(i?1:-1)],true);pager.append(b);});nav.append(pager);
   const live=make('span');live.id='explorerAnnouncement';live.className='sr-only';live.setAttribute('role','status');nav.append(live);
   document.querySelector('.exam-toolbar').after(nav);$('practiceExam').classList.add('explorer-exam');layoutObserver=new ResizeObserver(()=>{const toolbar=document.querySelector('.exam-toolbar').getBoundingClientRect().height;const height=nav.getBoundingClientRect().height;$('practiceExam').style.setProperty('--explorer-toolbar',toolbar+'px');$('practiceExam').style.setProperty('--explorer-nav',height+'px');});layoutObserver.observe(document.querySelector('.exam-toolbar'));layoutObserver.observe(nav);$('examSubmit').textContent='Submit all parts';
-  const banks=make('div');banks.id='explorerWordBanks';banks.hidden=true;$('examPassagePanel').append(banks);
   $('passageImageButton').textContent='Page view';$('passageImageButton').title='Formatted page view of the supplied passage and figures. Text view adjusts to smaller screens.';
   selectPart(section,false);
  };
@@ -36,26 +36,29 @@
   document.querySelector('.passage-controls').hidden=part==='vocabulary';
   $('examPassageImage').hidden=part==='vocabulary'||$('passageImageButton').getAttribute('aria-pressed')!=='true';
   $('examPassage').hidden=part==='vocabulary'||$('passageTextButton').getAttribute('aria-pressed')!=='true';
-  $('explorerWordBanks').hidden=part!=='vocabulary';
-  if(part==='vocabulary'){token++;renderBanks(indices);}
+  $('practiceExam').classList.toggle('explorer-vocabulary',part==='vocabulary');
+  document.getElementById('explorerActivities')?.remove();bankObserver?.disconnect();$('practiceExam').style.setProperty('--explorer-bank-height','0px');
+  if(part==='vocabulary'){token++;const saved=hooks.state().explorerActivity;activity=indices.includes(saved)?saved:indices.find(index=>active.questions.some((q,i)=>q.passage===index&&hooks.state().answers[i]===undefined))??indices[0];hooks.state().explorerActivity=activity;activityNav(indices);}
   else showReading(indices[0]);
   if(redraw){hooks.changed();$('explorerParts').scrollIntoView({block:'start'});}
  }
- window.explorerShowContext=index=>{if(active)selectPart(partFor(index),true);};
+ window.explorerShowContext=index=>{if(active){if(partFor(index)==='vocabulary')hooks.state().explorerActivity=index;selectPart(partFor(index),true);}};
  window.explorerRefresh=()=>{
   if(!active)return;const state=hooks.state();
   document.querySelectorAll('#explorerParts>button').forEach(b=>{const part=b.dataset.part==='vocabulary'?'vocabulary':Number(b.dataset.part);const qs=active.questions.map((q,i)=>partFor(q.passage)===part?i:-1).filter(i=>i>=0);const n=qs.filter(i=>state.answers[i]!==undefined).length;
    b.replaceChildren(make('strong',part==='vocabulary'?'Vocabulary':'Part '+part),make('small',n+' / '+qs.length+' answered'));b.setAttribute('aria-pressed',String(part===section));});
   const buttons=document.querySelectorAll('.explorer-pager button');buttons[0].disabled=parts.indexOf(section)===0;buttons[1].disabled=parts.indexOf(section)===parts.length-1;
+  document.querySelectorAll('#explorerActivities button[data-activity]').forEach(b=>{const index=Number(b.dataset.activity),qs=active.questions.map((q,i)=>q.passage===index?i:-1).filter(i=>i>=0);b.textContent='Activity '+(Number(b.dataset.position)+1)+' · '+qs.filter(i=>state.answers[i]!==undefined).length+'/'+qs.length;b.setAttribute('aria-pressed',String(index===activity));});
   document.querySelectorAll('.explorer-bank button').forEach(b=>{const used=active.questions.some((q,i)=>q.passage===Number(b.dataset.section)&&q.options[state.answers[i]]?.text===b.textContent);b.classList.toggle('word-used',used);b.setAttribute('aria-pressed',String(selectedWord?.section===Number(b.dataset.section)&&selectedWord?.text===b.textContent));});
  };
- function renderBanks(indices){
-  const box=$('explorerWordBanks');box.replaceChildren(make('p','Drag a word to a blank, or select a word and then select its blank. Use the part buttons above to revisit either reading.'));
-  indices.forEach((index,n)=>{const p=active.passages[index],group=make('section');group.className='explorer-bank-group';group.append(make('h3','Activity '+(n+1)),make('p',p.instructions));
-   if(p.gapBank){const bank=make('div');bank.className='explorer-bank';bank.setAttribute('aria-label','Word bank for activity '+(n+1));p.bank.forEach(word=>{const b=make('button',word.text);b.type='button';b.draggable=!hooks.state().submitted;b.disabled=hooks.state().submitted;b.dataset.section=index;b.onclick=()=>{selectedWord={section:index,text:word.text};window.explorerRefresh();$('explorerAnnouncement').textContent=word.text+' selected. Select a blank in activity '+(n+1)+'.';};b.ondragstart=e=>{e.dataTransfer.setData('text/plain',JSON.stringify({test:active.id,section:index,text:word.text}));e.dataTransfer.effectAllowed='copy';};bank.append(b);});group.append(bank);}
-   else group.append(make('p','Answer the questions in this activity.'));
-   box.append(group);
-  });window.explorerRefresh();
+ function activityNav(indices){
+  const nav=make('nav');nav.id='explorerActivities';nav.className='explorer-activities';nav.setAttribute('aria-label','Vocabulary activities');
+  indices.forEach((index,n)=>{const button=make('button');button.type='button';button.dataset.activity=index;button.dataset.position=n;button.onclick=()=>{activity=index;hooks.state().explorerActivity=index;selectedWord=null;hooks.changed();nav.scrollIntoView({block:'start'});};nav.append(button);});
+  $('examResult').before(nav);window.explorerRefresh();
+ }
+ function wordBank(index){
+  const bank=make('div');bank.className='explorer-bank';bank.id='explorerWordBanks';bank.setAttribute('aria-label','Word bank for this activity');
+  active.passages[index].bank.forEach(word=>{const b=make('button',word.text);b.type='button';b.draggable=!hooks.state().submitted;b.disabled=hooks.state().submitted;b.dataset.section=index;b.onclick=()=>{selectedWord={section:index,text:word.text};window.explorerRefresh();$('explorerAnnouncement').textContent=word.text+' selected. Select its blank.';};b.ondragstart=e=>{e.dataTransfer.setData('text/plain',JSON.stringify({test:active.id,section:index,text:word.text}));e.dataTransfer.effectAllowed='copy';};bank.append(b);});bankObserver?.disconnect();bankObserver=new ResizeObserver(()=>$('practiceExam').style.setProperty('--explorer-bank-height',bank.getBoundingClientRect().height+'px'));bankObserver.observe(bank);return bank;
  }
  window.explorerActivityHeader=(q,i)=>{
   const first=active.questions.findIndex(item=>item.passage===q.passage);if(i!==first)return;
@@ -63,26 +66,37 @@
   const header=make('div');header.className='explorer-activity-intro';header.append(title,make('p',p.instructions));
   const base=active.passages[p.readingContext]||p;
   const extras=p===base?[]:p.paragraphs.filter(text=>!base.paragraphs.includes(text));
-  (section==='vocabulary'?p.paragraphs:extras).forEach(value=>{const paragraph=formatted('p',value);paragraph.className='explorer-activity-text';header.append(paragraph);});
+  if(active.questions.some(item=>item.passage===q.passage&&bankQuestion(item))){header.append(make('p','Drag a word to a blank, or select a word and then select a blank.'),wordBank(q.passage));}
+  const context=section==='vocabulary'?p.paragraphs:extras;
+  if(context.length){
+   const parent=section==='vocabulary'?make('details'):header;
+   if(section==='vocabulary'){parent.className='explorer-activity-context';parent.open=active.questions.filter(item=>item.passage===q.passage).some(item=>/^\(?\d+\)?\s*_{2,}/.test(item.stem));parent.append(make('summary','Activity context'));header.append(parent);}
+   context.forEach(value=>{const paragraph=formatted('p',value);paragraph.className='explorer-activity-text';parent.append(paragraph);});
+  }
   return header;
  };
+ function underlineBoxTargets(legend,q){
+  for(const target of window.explorerWordBoxFormat?.[active.id]?.[q.number]||[]){const walker=document.createTreeWalker(legend,NodeFilter.SHOW_TEXT),nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);for(const node of nodes){const at=node.textContent.toLowerCase().indexOf(target.toLowerCase());if(at<0||node.parentElement.closest('u'))continue;const fragment=document.createDocumentFragment(),marked=make('u',node.textContent.slice(at,at+target.length));marked.className='explorer-match-target';fragment.append(document.createTextNode(node.textContent.slice(0,at)),marked,document.createTextNode(node.textContent.slice(at+target.length)));node.replaceWith(fragment);break;}}
+ }
  window.explorerGap=(legend,choices,q,i)=>{
-  const p=active.passages[q.passage];if(section!=='vocabulary'||!p.gapBank||q.type!=='choice'||!q.stem.match(/_{2,}/))return false;
+  const p=active.passages[q.passage];if(!bankQuestion(q))return false;underlineBoxTargets(legend,q);
   const state=hooks.state(),button=make('button'),picker=make('select'),clear=make('button','Clear');let value=state.answers[i];
   button.type='button';button.className='explorer-blank';button.setAttribute('aria-label','Blank for question '+(i+1));button.disabled=state.submitted;
   const placeholder=make('option','Choose a word');placeholder.value='';picker.append(placeholder);q.options.forEach((o,oi)=>{const option=make('option',o.text);option.value=oi;picker.append(option);});picker.setAttribute('aria-label','Choose a word for question '+(i+1));picker.disabled=state.submitted;picker.value=value===undefined?'':String(value);
   clear.type='button';clear.disabled=state.submitted;clear.setAttribute('aria-label','Clear answer to question '+(i+1));
   function update(word){const oi=q.options.findIndex(o=>o.text===word);if(oi<0)return;hooks.answer(i,oi);value=hooks.state().answers[i];sync();}
   function sync(){button.textContent=q.options[value]?.text||'Select or drop a word';picker.value=value===undefined?'':String(value);clear.hidden=value===undefined;}
-  button.onclick=()=>{if(selectedWord?.section===q.passage)update(selectedWord.text);else{picker.focus();$('explorerAnnouncement').textContent='Choose a word from the bank or the list below this blank.';}};
+  button.onclick=()=>{if(selectedWord?.section===q.passage)update(selectedWord.text);else{picker.parentElement.open=true;picker.focus();$('explorerAnnouncement').textContent='Choose a word from the bank or the list below this blank.';}};
   button.ondragover=e=>{if(!state.submitted){e.preventDefault();button.classList.add('drag-over');e.dataTransfer.dropEffect='copy';}};button.ondragleave=()=>button.classList.remove('drag-over');
   button.ondrop=e=>{e.preventDefault();button.classList.remove('drag-over');if(state.submitted)return;try{const word=JSON.parse(e.dataTransfer.getData('text/plain'));if(word.test===active.id&&word.section===q.passage)update(word.text);else $('explorerAnnouncement').textContent='Use the word bank for this activity.';}catch(_){}};
   picker.onchange=()=>{hooks.answer(i,picker.value===''?undefined:Number(picker.value));value=hooks.state().answers[i];sync();};clear.onclick=()=>{hooks.answer(i,undefined);value=hooks.state().answers[i];sync();};
-  const text=legend.textContent,split=text.split(/_{2,}/);legend.replaceChildren(document.createTextNode(split.shift()),button,document.createTextNode(split.join('________')));
-  const tools=make('div');tools.className='explorer-blank-tools';tools.append(picker,clear);choices.append(tools);sync();
+  const walker=document.createTreeWalker(legend,NodeFilter.SHOW_TEXT);let target;while(walker.nextNode()){if(/_{2,}/.test(walker.currentNode.textContent)){target=walker.currentNode;break;}}
+  if(target){const match=/_{2,}/.exec(target.textContent),fragment=document.createDocumentFragment();fragment.append(document.createTextNode(target.textContent.slice(0,match.index)),button,document.createTextNode(target.textContent.slice(match.index+match[0].length)));target.replaceWith(fragment);}else legend.append(document.createTextNode(' → '),button);
+  const tools=make('div');tools.className='explorer-blank-tools';const fallback=make('details');fallback.className='explorer-list-fallback';fallback.append(make('summary','Choose from list'),picker);tools.append(fallback,clear);choices.append(tools);sync();
   if(state.submitted){button.classList.add(hooks.correct(q,value)?'correct':'wrong');choices.append(make('p','Correct answer: '+q.options[q.key].text));}
   return true;
  };
+ document.addEventListener('focusin',event=>{if(!active||section!=='vocabulary')return;const field=event.target.closest?.('.exam-question');if(!field)return;requestAnimationFrame(()=>{const bank=document.getElementById('explorerWordBanks');if(!bank||!field.isConnected)return;const top=bank.getBoundingClientRect().bottom+12,rect=field.getBoundingClientRect();if(rect.top<top&&rect.height<innerHeight-top-12)window.scrollBy(0,rect.top-top);});});
  async function showReading(index){
   if(!active)return;const test=active,current=++token,source=test.passages[index];if(!source)return;
   const base=test.passages[source.readingContext]||source;

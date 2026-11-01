@@ -6,7 +6,7 @@ for(const book of [2,3])for(const unit of require('./explorer-data/book'+book+'.
  await page.goto('http://localhost:8771/reading-practice.html?collection=reading-explorer-'+book+'&reading='+unit.id);await page.waitForSelector('#exam-q-0');
  const parts=[...new Set(unit.passages.map(p=>p.part))];
  for(const part of parts){await page.locator('#explorerParts>button[data-part="'+part+'"]').click();
-  if(part==='vocabulary'){const expected=unit.passages.filter(p=>p.part===part).flatMap(p=>p.paragraphs.flatMap(text=>(unit.superscripts[text]||[]).map(([a,b])=>text.slice(a,b))));assert.deepEqual(await page.locator('#examQuestions sup').allTextContents(),expected);references+=expected.length;continue;}
+  if(part==='vocabulary'){for(const p of unit.passages.filter(p=>p.part===part)){await page.locator('[data-activity="'+p.id+'"]').click();const expected=p.paragraphs.flatMap(text=>(unit.superscripts[text]||[]).map(([a,b])=>text.slice(a,b)));assert.deepEqual(await page.locator('#examQuestions sup').allTextContents(),expected);references+=expected.length;}continue;}
   const source=unit.passages.find(p=>p.part===part),base=unit.passages[source.readingContext];
   const expected=[base.title,...base.paragraphs].flatMap(text=>(unit.superscripts[text]||[]).map(([a,b])=>text.slice(a,b)));
   await page.waitForSelector('#examPassageImage img');await page.locator('#examPassageImage img').evaluate(i=>i.decode());

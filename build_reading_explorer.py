@@ -142,7 +142,7 @@ def parse(path,book):
  for i,section in enumerate(sections):
   section['part']=reading_sections.index(i)+1 if i in reading_sections else 'vocabulary'
   section['readingContext']=i if section['part'] in [1,2] else reading_sections[1]
-  section['gapBank']=bool(section['bank']) and any(re.search(r'_{2,}',q['stem']) for q in section['questions']) and not re.search(r'match|definition|meaning|purpose|order|heading|point of view|advantage',section['instructions'],re.I)
+  section['gapBank']=bool(section['bank']) and any(q['type']=='choice' and sorted(o['text'] for o in q['options'])==sorted(o['text'] for o in section['bank']) for q in section['questions'])
  assert len(allq)==len(keys),(path,'key count mismatch',len(allq),len(keys))
  return {'id':unit,'label':'Unit '+unit,'title':'Reading Explorer '+str(book)+' · Unit '+unit,'questions':allq,'vocabulary':[],'paragraphs':[],'superscripts':formats,'passages':[{k:v for k,v in s.items() if k!='questions'} for s in sections]}
 if __name__=='__main__':

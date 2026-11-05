@@ -78,3 +78,6 @@ a.packet-choice{display:block;text-decoration:none;color:inherit}a.packet-choice
 .explorer-vocabulary #examNav,.explorer-vocabulary #examProgress,.explorer-vocabulary .explorer-activity-title{display:none}.explorer-vocabulary #examProgressLabel{display:block;font-size:14px;margin:4px 0 8px}.explorer-vocabulary #examNextFlag:disabled{display:none}.explorer-vocabulary .explorer-blank-tools{min-width:0}.explorer-list-fallback{max-width:100%;min-width:0}
 .explorer-vocabulary .explorer-activity-intro{display:contents}.explorer-vocabulary .explorer-bank{position:sticky;top:calc(var(--explorer-toolbar,78px) + var(--explorer-nav,130px) + 6px);z-index:3;max-height:min(30dvh,220px);overflow:auto}.explorer-vocabulary #examQuestions .exam-question{scroll-margin-top:calc(var(--explorer-toolbar,78px) + var(--explorer-nav,130px) + var(--explorer-bank-height,70px) + 18px)}
 .explorer-match-target{font-weight:650;text-underline-offset:3px}
+
+/* Blackboard embed mode hides only the site banner. */
+html.embed-mode body>header{display:none}

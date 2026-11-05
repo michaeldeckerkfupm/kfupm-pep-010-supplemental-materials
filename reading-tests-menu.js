@@ -27,7 +27,7 @@
    const grid=node('div',undefined,'grid reading-toc packet-choices');
    data.forEach(collection=>{
     const card=node('a',undefined,'panel card packet-choice');
-    card.id='packet-'+collection.id;card.href='reading-practice.html?collection='+encodeURIComponent(collection.id);
+    card.id='packet-'+collection.id;card.href=window.materialsEmbedURL('reading-practice.html?collection='+encodeURIComponent(collection.id));
     card.append(node('strong',collection.title),node('small',collection.count+' '+(collection.itemLabel||'readings')+' · 20 minutes each'));
     if(collection.vocabulary)card.append(node('small','Vocabulary practice included'));
     card.append(node('span','Open readings','packet-action'));grid.append(card);

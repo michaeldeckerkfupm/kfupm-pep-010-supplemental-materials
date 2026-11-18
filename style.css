@@ -81,3 +81,6 @@ a.packet-choice{display:block;text-decoration:none;color:inherit}a.packet-choice
 
 /* Blackboard embed mode hides only the site banner. */
 html.embed-mode body>header{display:none}
+
+.listening-format { display:inline-flex; align-items:center; gap:.4rem; cursor:pointer; }
+.listening-answer { display:block; width:100%; min-width:0; min-height:44px; padding:.5rem; font:inherit; color:inherit; background:white; border:1px solid #73857f; border-radius:.4rem; }
